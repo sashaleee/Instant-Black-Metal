@@ -1,4 +1,4 @@
-# OneKeySynth
+# Instant Black Metal
 
 ~ coming soon ~ 
 
