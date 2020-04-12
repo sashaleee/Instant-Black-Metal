@@ -17,12 +17,11 @@ Oscil<SAW8192_NUM_CELLS, AUDIO_RATE> aSAW3(SAW8192_DATA);
 Oscil<SAW8192_NUM_CELLS, AUDIO_RATE> aSAW4(SAW8192_DATA);
 Oscil<SAW8192_NUM_CELLS, AUDIO_RATE> aSAW5(SAW8192_DATA);
 
-//pins
-byte octavePin = 7;
 
-//chord formula
-byte droneNote = 0; // if it equals 1 the fifth note of the chord is constant
-byte chordFormula[5] = {0, 7, 14, 15, 19}; //chord intervals in semitones
+//chords
+byte editCurrentChord = 0;
+byte currentChord = 0; //0..5
+byte chords[6][6] = {{0, 7, 12, 15, 64, 5}, {0, 7, 12, 14, 19, 0}, {0, 0, 0, 0, 0, 0}, {0, 7, 14, 15, 19, 0}, {0, 7, 12, 15, 19, 0}, {0, 7, 8, 15, 17, 0}};
 byte baseFrq = 46; // tonic midi note coder
 
 //gain
@@ -51,14 +50,13 @@ boolean noteIsOn = false;
 EventDelay noteDelay;
 
 void setup() {
-  pinMode(octavePin, INPUT_PULLUP);
 
   for (int i = 2; i < 8; i++) {
     pinMode(i, INPUT_PULLUP);
   }
 
-  pinMode(10, OUTPUT); //LED pin
-  digitalWrite(10, HIGH); //turn LED on
+  pinMode(11, OUTPUT); //LED pin
+  digitalWrite(11, HIGH); //turn LED on
 
   MIDI.turnThruOff();
   MIDI.setHandleNoteOn(handleNoteOn);
@@ -118,142 +116,48 @@ int updateAudio() {
   }
 }
 
-//-----MIDI Callbacks-----------------------------------------------------------------------
-
-//---note on-------------
-void handleNoteOn(byte channel, byte pitch, byte velocity) {
-  envelope.noteOff();
-  envelope.update();
-  currentPitch = pitch;
-  playMidiNote = true;
-  if (pitch > 24) {
-    setOscFreq(currentPitch + octave);
-  } else {
-    baseFrq = int(rand(45, 57)); //new random tonic from G# to G#
-    setOscFreq(baseFrq + octave); // set new chord tonic
-  }
-  noteIsOn = true;
-  envelope.noteOn();
-  envelope.update();
-
-}
-
-//---note off-------------
-void handleNoteOff(byte channel, byte pitch, byte velocity) {
-  if (pitch == currentPitch) {
-    playMidiNote = false;
-    noteIsOn = false;
-    envelope.noteOff();
-    noteDelay.start(releaseMs + 50);
-  }
-
-}
-
-void handleControlChange(byte channel, byte number, byte value) {
-
-  switch (number) {
-    case 55:
-      if (value > 100) {
-        octave = 12;
-      } else {
-        octave = 0;
-      }
-      break;
-
-    case 19:
-      switch (value) {
-        case 0:
-          //---m + E drone--------
-          chordFormula[0] = 0;
-          chordFormula[1] = 7;
-          chordFormula[2] = 12;
-          chordFormula[3] = 15;
-          chordFormula[4] = 64;
-          droneNote = 1;
-          break;
-
-        case 20:
-          //---sus2----------------
-          chordFormula[0] = 0;
-          chordFormula[1] = 7;
-          chordFormula[2] = 12;
-          chordFormula[3] = 14;
-          chordFormula[4] = 19;
-          droneNote = 0;
-          break;
-
-        case 40:
-          //---m7(b9)--------------
-          //          chordFormula[0] = 0;
-          //          chordFormula[1] = 15;
-          //          chordFormula[2] = 10;
-          //          chordFormula[3] = 12;
-          //          chordFormula[4] = 13;
-          //          droneNote = 0;
-
-          //---note---------------
-          chordFormula[0] = 0;
-          chordFormula[1] = 0;
-          chordFormula[2] = 0;
-          chordFormula[3] = 0;
-          chordFormula[4] = 0;
-          droneNote = 0;
-          break;
-
-        case 60:
-          //---m add9---------------
-          chordFormula[0] = 0;
-          chordFormula[1] = 7;
-          chordFormula[2] = 14;
-          chordFormula[3] = 15;
-          chordFormula[4] = 19;
-          droneNote = 0;
-          break;
-
-        case 80:
-          //---m---------------
-          chordFormula[0] = 0;
-          chordFormula[1] = 7;
-          chordFormula[2] = 12;
-          chordFormula[3] = 15;
-          chordFormula[4] = 19;
-          droneNote = 0;
-          break;
-
-        case 100:
-          //---m9---------------
-          chordFormula[0] = 0;
-          chordFormula[1] = 7;
-          chordFormula[2] = 8;
-          chordFormula[3] = 15;
-          chordFormula[4] = 17;
-          droneNote = 0;
-          break;
-      }
-      break;
-
-    case 0:
-      attack = 10 + (value * 8);
-      envelope.setAttackTime(attack);
-      break;
-
-    case 1:
-      releaseMs = 30 + (value * 16);
-      envelope.setReleaseTime(releaseMs);
-      break;
-  }
-}
-
 //-----Set oscillators frequencies-----------------------------------------------------------
 void setOscFreq(byte tonic) {
-  aSAW1.setFreq(mtof(tonic + chordFormula[0]));
-  aSAW2.setFreq(mtof(tonic + chordFormula[1]));
-  aSAW3.setFreq(mtof(tonic + chordFormula[2]));
-  aSAW4.setFreq(mtof(tonic + chordFormula[3]));
-  if (droneNote == 0) {
-    aSAW5.setFreq(mtof(tonic + chordFormula[4]));
+  if (chords[currentChord][5] == 0) {
+    aSAW1.setFreq(mtof(tonic + chords[currentChord][0]));
+    aSAW2.setFreq(mtof(tonic + chords[currentChord][1]));
+    aSAW3.setFreq(mtof(tonic + chords[currentChord][2]));
+    aSAW4.setFreq(mtof(tonic + chords[currentChord][3]));
+    aSAW5.setFreq(mtof(tonic + chords[currentChord][4]));
   }
-  else if (droneNote > 0) {
-    aSAW5.setFreq(mtof(chordFormula[4]));
+  if (chords[currentChord][5] == 1) {
+    aSAW1.setFreq(mtof(chords[currentChord][0]));
+    aSAW2.setFreq(mtof(tonic + chords[currentChord][1]));
+    aSAW3.setFreq(mtof(tonic + chords[currentChord][2]));
+    aSAW4.setFreq(mtof(tonic + chords[currentChord][3]));
+    aSAW5.setFreq(mtof(tonic + chords[currentChord][4]));
+  }
+  if (chords[currentChord][5] == 2) {
+    aSAW1.setFreq(mtof(tonic + chords[currentChord][0]));
+    aSAW2.setFreq(mtof(chords[currentChord][1]));
+    aSAW3.setFreq(mtof(tonic + chords[currentChord][2]));
+    aSAW4.setFreq(mtof(tonic + chords[currentChord][3]));
+    aSAW5.setFreq(mtof(tonic + chords[currentChord][4]));
+  }
+  if (chords[currentChord][5] == 3) {
+    aSAW1.setFreq(mtof(tonic + chords[currentChord][0]));
+    aSAW2.setFreq(mtof(tonic + chords[currentChord][1]));
+    aSAW3.setFreq(mtof(chords[currentChord][2]));
+    aSAW4.setFreq(mtof(tonic + chords[currentChord][3]));
+    aSAW5.setFreq(mtof(tonic + chords[currentChord][4]));
+  }
+  if (chords[currentChord][5] == 4) {
+    aSAW1.setFreq(mtof(tonic + chords[currentChord][0]));
+    aSAW2.setFreq(mtof(tonic + chords[currentChord][1]));
+    aSAW3.setFreq(mtof(tonic + chords[currentChord][2]));
+    aSAW4.setFreq(mtof(chords[currentChord][3]));
+    aSAW5.setFreq(mtof(tonic + chords[currentChord][4]));
+  }
+  if (chords[currentChord][5] == 5) {
+    aSAW1.setFreq(mtof(tonic + chords[currentChord][0]));
+    aSAW2.setFreq(mtof(tonic + chords[currentChord][1]));
+    aSAW3.setFreq(mtof(tonic + chords[currentChord][2]));
+    aSAW4.setFreq(mtof(tonic + chords[currentChord][3]));
+    aSAW5.setFreq(mtof(chords[currentChord][4]));
   }
 }
