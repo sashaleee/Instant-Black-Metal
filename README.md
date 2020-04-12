@@ -2,6 +2,7 @@
 
 ~ coming soon ~ 
 
+- Arduino Mini pro
 - 6 poistion rotary Switch (Chord selection)
 - Linear Potentiometer × 3 (Gain, Attack, Release)
 - 3.5mm stereo jack (MIDI in)
